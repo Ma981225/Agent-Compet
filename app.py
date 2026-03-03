@@ -1,8 +1,10 @@
 """
 租房需求匹配智能体 Web API 服务
 """
-from fastapi import FastAPI, HTTPException, APIRouter, Header
+from fastapi import FastAPI, HTTPException, APIRouter, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional, List
 from agent import RentalHouseAgent
@@ -19,6 +21,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """处理请求验证错误"""
+    log_error("[Validation] 请求验证失败 | Path: %s | Errors: %s", request.url.path, exc.errors())
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": exc.errors(),
+            "body": str(request.body()) if hasattr(request, 'body') else None
+        }
+    )
 
 agent = RentalHouseAgent()
 
@@ -67,46 +82,56 @@ async def health_check():
 @v1_router.post("/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
-    session_id: str = Header(..., alias="Session-ID", description="会话ID，由评测接口生成，必填")
+    session_id: Optional[str] = Header(None, alias="Session-ID", description="会话ID，由评测接口生成")
 ):
     """
     处理用户聊天请求（判题器接口）
     
     Args:
         request: 聊天请求，包含model_ip、session_id、message
-        session_id: 从请求头获取的Session-ID（必填，由评测接口生成）
+        session_id: 从请求头获取的Session-ID（可选，优先使用请求头，其次使用请求体中的session_id）
         
     Returns:
         聊天响应，包含助手回复和会话ID
     """
+    from fastapi import Request
+    from fastapi.exceptions import RequestValidationError
+    
     start_time = time.time()
+    
+    # 优先使用请求头中的Session-ID，其次使用请求体中的session_id
+    final_session_id = session_id or request.session_id or "unknown"
     
     try:
         log_info("[Chat] 收到判题器请求")
-        log_info("[Chat] Model IP: %s | Session: %s | 消息长度: %d", 
-                 request.model_ip, session_id, len(request.message))
+        log_info("[Chat] Model IP: %s | Session (Header): %s | Session (Body): %s | 消息长度: %d", 
+                 request.model_ip, session_id, request.session_id, len(request.message))
         log_info("[Chat] 用户消息: %s", request.message[:200] if len(request.message) > 200 else request.message)
         
         # 传递model_ip和session_id给agent
         reply = agent.process_user_input(
             request.message, 
             model_ip=request.model_ip,
-            session_id=session_id
+            session_id=final_session_id
         )
         
         elapsed_time = time.time() - start_time
         log_info("[Chat] 处理完成 | Session: %s | 耗时: %.2f秒 | 回复长度: %d", 
-                 session_id, elapsed_time, len(reply))
+                 final_session_id, elapsed_time, len(reply))
         log_info("[Chat] 生成回复: %s", reply[:200] if len(reply) > 200 else reply)
         
         return ChatResponse(
             reply=reply,
-            session_id=session_id
+            session_id=final_session_id
         )
+    except RequestValidationError as e:
+        log_error("[Chat] 请求验证失败: %s", str(e))
+        log_error("[Chat] 错误详情: %s", e.errors() if hasattr(e, 'errors') else '')
+        raise HTTPException(status_code=422, detail={"message": "请求验证失败", "errors": e.errors() if hasattr(e, 'errors') else str(e)})
     except Exception as e:
         elapsed_time = time.time() - start_time
         log_error("[Chat] 处理失败 | Session: %s | 耗时: %.2f秒 | 错误: %s", 
-                  session_id, elapsed_time, str(e))
+                  final_session_id, elapsed_time, str(e))
         raise HTTPException(status_code=500, detail=f"处理请求时发生错误: {str(e)}")
 
 
