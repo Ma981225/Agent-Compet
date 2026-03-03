@@ -11,6 +11,10 @@ API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")
 
+# Web服务配置
+SERVER_HOST = os.getenv("HOST", "0.0.0.0")
+SERVER_PORT = int(os.getenv("PORT", "8000"))
+
 # 模型配置
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-3.5-turbo")
 MAX_TOKENS = int(os.getenv("MAX_TOKENS", "2000"))

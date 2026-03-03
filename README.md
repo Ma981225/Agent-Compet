@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # 租房需求匹配智能体
 
 一个基于自然语言处理的智能租房推荐系统，支持多平台房源搜索、多维度评价和智能推荐。
@@ -60,6 +59,55 @@ TEMPERATURE=0.7
 ```
 
 ## 使用方法
+
+### Web API 服务（推荐）
+
+启动Web服务，对外暴露端口：
+
+```bash
+python run_server.py
+```
+
+或者直接运行：
+
+```bash
+python app.py
+```
+
+服务默认运行在 `http://0.0.0.0:8000`
+
+#### API端点
+
+- `POST /v1/chat` - 处理用户聊天请求
+  ```json
+  {
+    "message": "我想在朝阳区租一套两居室",
+    "session_id": "optional_session_id"
+  }
+  ```
+
+- `POST /v1/reset` - 重置对话状态
+  ```json
+  {
+    "session_id": "optional_session_id"
+  }
+  ```
+
+- `GET /health` - 健康检查
+
+- `GET /docs` - API文档（Swagger UI）
+
+#### 使用curl测试
+
+```bash
+# 发送聊天请求
+curl -X POST "http://localhost:8000/v1/chat" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "我想在朝阳区租一套两居室"}'
+
+# 健康检查
+curl http://localhost:8000/health
+```
 
 ### 命令行运行
 
@@ -137,4 +185,3 @@ print(reply)
 MIT License
 =======
 # Agent-Compet
->>>>>>> d75395c88091241340c341714ac63816361abe47
