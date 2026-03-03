@@ -21,13 +21,19 @@ class HouseFilter:
         Returns:
             筛选后的房源列表
         """
+        log_info("[Filter] 开始筛选房源，原始数量: %d", len(houses))
+        log_info("[Filter] 筛选条件: %s", str(requirement.model_dump(exclude_none=True)))
+        
         filtered = []
+        rejected_count = 0
         
         for house in houses:
             if self._match_requirement(house, requirement):
                 filtered.append(house)
+            else:
+                rejected_count += 1
         
-        log_info("筛选后剩余 %d 套房源", len(filtered))
+        log_info("[Filter] 筛选完成，通过: %d，拒绝: %d", len(filtered), rejected_count)
         return filtered
     
     def _match_requirement(self, house: HouseInfo, requirement: Requirement) -> bool:

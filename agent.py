@@ -35,28 +35,39 @@ class RentalHouseAgent:
             回复消息
         """
         try:
+            log_info("[Agent] 开始处理用户输入，长度: %d", len(user_input))
+            
             requirement, reply = self.requirement_extractor.extract_requirement(
                 user_input, self.current_requirement
             )
             
+            log_info("[Agent] 需求提取完成，需求完整性: %s", requirement.is_complete())
+            
             if requirement.is_complete():
                 self.current_requirement = requirement
+                log_info("[Agent] 当前需求: %s", str(requirement.model_dump(exclude_none=True)))
                 
                 if self._should_search_houses(user_input):
                     platforms = self._extract_platforms(user_input)
+                    log_info("[Agent] 检测到搜索意图，平台: %s", platforms if platforms else "全部平台")
                     houses = self._search_and_evaluate_houses(requirement, platforms)
                     if houses:
+                        log_info("[Agent] 找到 %d 套候选房源", len(houses))
                         reply = self._format_recommendation(houses)
                     else:
+                        log_warning("[Agent] 未找到符合需求的房源")
                         reply = "抱歉，没有找到符合您需求的房源，请尝试调整搜索条件。"
+                else:
+                    log_info("[Agent] 无需搜索房源，仅进行需求提取")
             else:
+                log_info("[Agent] 需求不完整，等待更多信息")
                 if not self.current_requirement:
                     self.current_requirement = requirement
             
             return reply
             
         except Exception as e:
-            log_error("处理用户输入失败: %s", str(e))
+            log_error("[Agent] 处理用户输入失败: %s", str(e))
             return "抱歉，处理您的请求时遇到了问题，请重新描述您的需求。"
     
     def _should_search_houses(self, user_input: str) -> bool:
@@ -76,22 +87,37 @@ class RentalHouseAgent:
         Returns:
             评价后的房源列表（最多5套）
         """
-        log_info("开始搜索房源，需求: %s", str(requirement.model_dump()))
+        log_info("[Search] ========== 开始搜索房源 ==========")
+        log_info("[Search] 需求: %s", str(requirement.model_dump(exclude_none=True)))
+        log_info("[Search] 平台: %s", platforms if platforms else "全部平台")
         
         houses = self.house_fetcher.fetch_houses(requirement, platforms)
-        log_info("获取到 %d 套房源", len(houses))
+        log_info("[Search] 获取到 %d 套原始房源", len(houses))
+        
+        original_count = len(houses)
         
         houses = self.house_filter.deduplicate_houses(houses)
+        log_info("[Search] 去重后剩余 %d 套房源", len(houses))
+        
         houses = self.house_filter.verify_houses(houses)
+        log_info("[Search] 核验后剩余 %d 套房源", len(houses))
+        
         houses = self.house_filter.filter_houses(houses, requirement)
+        log_info("[Search] 筛选后剩余 %d 套房源", len(houses))
         
         if not houses:
+            log_warning("[Search] 筛选后无房源，搜索结束")
             return []
         
+        log_info("[Search] 开始评价 %d 套房源", len(houses))
         houses = self.house_evaluator.evaluate_houses(houses, requirement)
         
         top_houses = houses[:MAX_CANDIDATES]
         self.candidate_houses = top_houses
+        
+        log_info("[Search] 最终推荐 %d 套房源（原始: %d -> 最终: %d）", 
+                 len(top_houses), original_count, len(top_houses))
+        log_info("[Search] ========== 搜索完成 ==========")
         
         return top_houses
     

@@ -7,7 +7,8 @@ from pydantic import BaseModel
 from typing import Optional, List
 from agent import RentalHouseAgent
 from models.house import HouseInfo
-from utils.logger import log_info, log_error
+from utils.logger import log_info, log_error, log_warning
+import time
 
 app = FastAPI(title="租房需求匹配智能体API", version="1.0.0")
 
@@ -48,15 +49,33 @@ class HealthResponse(BaseModel):
     message: str
 
 
+@app.on_event("startup")
+async def startup_event():
+    """服务启动事件"""
+    log_info("=" * 50)
+    log_info("租房需求匹配智能体API服务启动")
+    log_info("=" * 50)
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """服务关闭事件"""
+    log_info("=" * 50)
+    log_info("租房需求匹配智能体API服务关闭")
+    log_info("=" * 50)
+
+
 @app.get("/", response_model=HealthResponse)
 async def root():
     """根路径，返回服务信息"""
+    log_info("收到根路径访问请求")
     return HealthResponse(status="ok", message="租房需求匹配智能体API服务运行中")
 
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
     """健康检查端点"""
+    log_info("收到健康检查请求")
     return HealthResponse(status="ok", message="服务正常")
 
 
@@ -71,19 +90,29 @@ async def chat(request: ChatRequest):
     Returns:
         聊天响应，包含助手回复和会话ID
     """
+    start_time = time.time()
+    session_id = request.session_id or "unknown"
+    
     try:
-        log_info("收到聊天请求: %s", request.message)
+        log_info("[Chat] 收到聊天请求 | Session: %s | 消息长度: %d", 
+                 session_id, len(request.message))
+        log_info("[Chat] 用户消息: %s", request.message[:200] if len(request.message) > 200 else request.message)
         
         reply = agent.process_user_input(request.message)
         
-        log_info("生成回复: %s", reply[:100] if len(reply) > 100 else reply)
+        elapsed_time = time.time() - start_time
+        log_info("[Chat] 处理完成 | Session: %s | 耗时: %.2f秒 | 回复长度: %d", 
+                 session_id, elapsed_time, len(reply))
+        log_info("[Chat] 生成回复: %s", reply[:200] if len(reply) > 200 else reply)
         
         return ChatResponse(
             reply=reply,
             session_id=request.session_id
         )
     except Exception as e:
-        log_error("处理聊天请求失败: %s", str(e))
+        elapsed_time = time.time() - start_time
+        log_error("[Chat] 处理失败 | Session: %s | 耗时: %.2f秒 | 错误: %s", 
+                  session_id, elapsed_time, str(e))
         raise HTTPException(status_code=500, detail=f"处理请求时发生错误: {str(e)}")
 
 
@@ -98,12 +127,14 @@ async def reset(request: Optional[ResetRequest] = None):
     Returns:
         重置结果
     """
+    session_id = request.session_id if request else "unknown"
     try:
+        log_info("[Reset] 收到重置请求 | Session: %s", session_id)
         agent.reset()
-        log_info("对话状态已重置")
+        log_info("[Reset] 对话状态已重置 | Session: %s", session_id)
         return {"status": "ok", "message": "对话状态已重置"}
     except Exception as e:
-        log_error("重置对话状态失败: %s", str(e))
+        log_error("[Reset] 重置失败 | Session: %s | 错误: %s", session_id, str(e))
         raise HTTPException(status_code=500, detail=f"重置失败: {str(e)}")
 
 

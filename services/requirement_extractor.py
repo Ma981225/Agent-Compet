@@ -38,6 +38,10 @@ class RequirementExtractor:
             return Requirement(), "抱歉，系统配置有误，无法处理您的需求。"
         
         try:
+            log_info("[Extractor] 开始提取需求，输入长度: %d", len(user_input))
+            if current_requirement:
+                log_info("[Extractor] 已有需求: %s", str(current_requirement.model_dump(exclude_none=True)))
+            
             system_prompt = self._build_system_prompt()
             user_message = self._build_user_message(user_input, current_requirement)
             
@@ -47,6 +51,7 @@ class RequirementExtractor:
             messages.extend(self.conversation_history[-2:])
             messages.append({"role": "user", "content": user_message})
             
+            log_info("[Extractor] 调用LLM，消息数: %d", len(messages))
             response = self.client.chat.completions.create(
                 model=MODEL_NAME,
                 messages=messages,
@@ -55,14 +60,19 @@ class RequirementExtractor:
                 response_format={"type": "json_object"}
             )
             
+            log_info("[Extractor] LLM响应完成，使用token: %d", response.usage.total_tokens if hasattr(response, 'usage') else 0)
+            
             result = json.loads(response.choices[0].message.content)
             
             requirement_dict = result.get("requirement", {})
             reply = result.get("reply", "")
             need_question = result.get("need_question", False)
             
+            log_info("[Extractor] 提取到需求字段: %s", list(requirement_dict.keys()))
+            
             if current_requirement:
                 requirement = self._merge_requirement(current_requirement, requirement_dict)
+                log_info("[Extractor] 合并需求完成")
             else:
                 requirement = Requirement(**requirement_dict)
             
@@ -72,9 +82,11 @@ class RequirementExtractor:
             if need_question and not requirement.is_complete():
                 missing = requirement.get_missing_fields()
                 if missing:
+                    log_info("[Extractor] 需求不完整，缺失字段: %s", missing)
                     reply = self._generate_question(missing, requirement)
             
-            log_info("需求提取成功: %s", str(requirement_dict))
+            log_info("[Extractor] 需求提取成功，完整性: %s，需求: %s", 
+                     requirement.is_complete(), str(requirement.model_dump(exclude_none=True)))
             return requirement, reply
             
         except Exception as e:

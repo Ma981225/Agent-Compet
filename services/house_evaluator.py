@@ -26,9 +26,10 @@ class HouseEvaluator:
         Returns:
             评价后的房源列表（已排序）
         """
+        log_info("[Evaluator] 开始评价 %d 套房源", len(houses))
         evaluated_houses = []
         
-        for house in houses:
+        for i, house in enumerate(houses, 1):
             commute_score = self._calculate_commute_score(house, requirement)
             price_score = self._calculate_price_score(house, houses)
             facilities_score = self._calculate_facilities_score(house, requirement)
@@ -49,9 +50,15 @@ class HouseEvaluator:
             house.disadvantages = disadvantages
             
             evaluated_houses.append(house)
+            
+            if i <= 3:  # 只记录前3套的详细评分
+                log_info("[Evaluator] 房源 %d 评分 - 通勤: %.1f, 性价比: %.1f, 配套: %.1f, 总分: %.1f", 
+                         i, commute_score, price_score, facilities_score, total_score)
         
         evaluated_houses.sort(key=lambda x: x.total_score or 0, reverse=True)
-        log_info("完成 %d 套房源的评价", len(evaluated_houses))
+        log_info("[Evaluator] 评价完成，最高分: %.1f, 最低分: %.1f", 
+                 evaluated_houses[0].total_score if evaluated_houses else 0,
+                 evaluated_houses[-1].total_score if evaluated_houses else 0)
         
         return evaluated_houses
     

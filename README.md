@@ -58,6 +58,31 @@ MAX_TOKENS=2000
 TEMPERATURE=0.7
 ```
 
+## 快速开始
+
+### 1. 安装依赖
+```bash
+pip install -r requirements.txt
+```
+
+### 2. 配置环境变量
+创建 `.env` 文件：
+```env
+OPENAI_API_KEY=your_api_key_here
+API_BASE_URL=http://localhost:8000
+```
+
+### 3. 启动服务
+```bash
+python run_server.py
+```
+
+### 4. 访问服务
+- API文档: http://localhost:8000/docs
+- 健康检查: http://localhost:8000/health
+
+详细运行流程请参考 [RUN_GUIDE.md](RUN_GUIDE.md)
+
 ## 使用方法
 
 ### Web API 服务（推荐）

@@ -35,18 +35,23 @@ class HouseFetcher:
         all_houses = []
         cache_key = self._generate_cache_key(requirement, platforms)
         
+        log_info("[Fetcher] 开始获取房源，平台数: %d", len(platforms))
+        
         if cache_key in self.cache:
-            log_info("使用缓存的房源数据")
+            log_info("[Fetcher] 使用缓存的房源数据，缓存键: %s", cache_key[:50])
             return self.cache[cache_key]
         
+        log_info("[Fetcher] 缓存未命中，开始从平台获取数据")
         for platform in platforms:
             try:
+                log_info("[Fetcher] 正在从平台 %s 获取房源...", platform)
                 houses = self._fetch_from_platform(platform, requirement)
                 all_houses.extend(houses)
-                log_info("从平台 %s 获取到 %d 套房源", platform, len(houses))
+                log_info("[Fetcher] 平台 %s 获取成功，房源数: %d", platform, len(houses))
             except Exception as e:
-                log_error("从平台 %s 获取房源失败: %s", platform, str(e))
+                log_error("[Fetcher] 平台 %s 获取失败: %s", platform, str(e))
         
+        log_info("[Fetcher] 所有平台获取完成，总计: %d 套房源", len(all_houses))
         self.cache[cache_key] = all_houses
         return all_houses
     
