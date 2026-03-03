@@ -22,8 +22,8 @@ app.add_middleware(
 
 agent = RentalHouseAgent()
 
-# 创建v1版本的路由
-v1_router = APIRouter(prefix="/v1", tags=["v1"])
+# 创建v1版本的路由，添加/api前缀
+v1_router = APIRouter(prefix="/api/v1", tags=["v1"])
 
 
 class ChatRequest(BaseModel):
@@ -49,12 +49,27 @@ class HealthResponse(BaseModel):
     message: str
 
 
+# 注册v1路由（必须在所有路由定义之后，但在启动事件之前）
+app.include_router(v1_router)
+
+
 @app.on_event("startup")
 async def startup_event():
     """服务启动事件"""
     log_info("=" * 50)
     log_info("租房需求匹配智能体API服务启动")
     log_info("=" * 50)
+    
+    # 打印所有注册的路由
+    log_info("已注册的路由:")
+    for route in app.routes:
+        if hasattr(route, "path") and hasattr(route, "methods"):
+            methods = ", ".join(route.methods) if route.methods else "GET"
+            log_info("  %s %s", methods, route.path)
+        elif hasattr(route, "path"):
+            log_info("  %s", route.path)
+    
+    log_info("v1路由前缀: /api/v1")
 
 
 @app.on_event("shutdown")
@@ -138,8 +153,6 @@ async def reset(request: Optional[ResetRequest] = None):
         raise HTTPException(status_code=500, detail=f"重置失败: {str(e)}")
 
 
-# 注册v1路由
-app.include_router(v1_router)
 
 if __name__ == "__main__":
     import uvicorn

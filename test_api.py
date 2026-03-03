@@ -19,7 +19,7 @@ def test_chat(message: str):
     """测试聊天接口"""
     print(f"=== 测试聊天: {message} ===")
     response = requests.post(
-        f"{BASE_URL}/v1/chat",
+        f"{BASE_URL}/api/v1/chat",
         json={"message": message}
     )
     print(f"状态码: {response.status_code}")
@@ -30,7 +30,7 @@ def test_chat(message: str):
 def test_reset():
     """测试重置接口"""
     print("=== 测试重置 ===")
-    response = requests.post(f"{BASE_URL}/v1/reset")
+    response = requests.post(f"{BASE_URL}/api/v1/reset")
     print(f"状态码: {response.status_code}")
     print(f"响应: {response.json()}\n")
 
