@@ -3,6 +3,7 @@
 """
 from typing import Optional, Dict, Any, Tuple
 import json
+import requests
 from openai import OpenAI
 from models.requirement import Requirement
 from config import OPENAI_API_KEY, OPENAI_BASE_URL, MODEL_NAME, MAX_TOKENS, TEMPERATURE
@@ -15,12 +16,36 @@ class RequirementExtractor:
     def __init__(self):
         """初始化需求提取器"""
         self.client = None
+        self.model_base_url = None
+        self.session_id = None
+        self.default_client = None
+        
+        # 初始化默认客户端（如果配置了OPENAI_API_KEY）
         if OPENAI_API_KEY:
-            self.client = OpenAI(
-                api_key=OPENAI_API_KEY,
-                base_url=OPENAI_BASE_URL if OPENAI_BASE_URL else None
-            )
+            try:
+                self.default_client = OpenAI(
+                    api_key=OPENAI_API_KEY,
+                    base_url=OPENAI_BASE_URL if OPENAI_BASE_URL else None
+                )
+                log_info("[Extractor] 默认OpenAI客户端初始化成功")
+            except Exception as e:
+                log_error("[Extractor] 默认OpenAI客户端初始化失败: %s", str(e))
+        else:
+            log_warning("[Extractor] OPENAI_API_KEY未配置，将使用判题器提供的模型服务")
+        
         self.conversation_history = []
+    
+    def set_model_config(self, model_ip: str, session_id: str):
+        """
+        设置模型服务配置（由判题器提供）
+        
+        Args:
+            model_ip: 模型服务IP地址
+            session_id: 会话ID（用于请求头）
+        """
+        self.model_base_url = f"http://{model_ip}:8888"
+        self.session_id = session_id
+        log_info("[Extractor] 模型服务配置成功 | IP: %s | Session: %s", model_ip, session_id)
     
     def extract_requirement(self, user_input: str, current_requirement: Optional[Requirement] = None) -> Tuple[Requirement, str]:
         """
@@ -33,9 +58,13 @@ class RequirementExtractor:
         Returns:
             (提取的需求对象, 回复消息)
         """
-        if not self.client:
-            log_error("OpenAI客户端未初始化，无法提取需求")
-            return Requirement(), "抱歉，系统配置有误，无法处理您的需求。"
+        # 检查是否有可用的模型服务（判题器模型服务或默认客户端）
+        if not self.model_base_url and not self.client:
+            if not self.default_client:
+                error_msg = "抱歉，系统配置有误：未配置模型服务。请配置OPENAI_API_KEY或等待判题器提供model_ip。"
+                log_error("[Extractor] 模型服务未初始化，无法提取需求")
+                return Requirement(), error_msg
+            self.client = self.default_client
         
         try:
             log_info("[Extractor] 开始提取需求，输入长度: %d", len(user_input))
@@ -52,13 +81,60 @@ class RequirementExtractor:
             messages.append({"role": "user", "content": user_message})
             
             log_info("[Extractor] 调用LLM，消息数: %d", len(messages))
-            response = self.client.chat.completions.create(
-                model=MODEL_NAME,
-                messages=messages,
-                max_tokens=MAX_TOKENS,
-                temperature=TEMPERATURE,
-                response_format={"type": "json_object"}
-            )
+            
+            # 如果使用判题器的模型服务
+            if self.model_base_url and self.session_id:
+                # 直接使用HTTP请求调用判题器的模型服务
+                url = f"{self.model_base_url}/v1/chat/completions"
+                headers = {
+                    "Content-Type": "application/json",
+                    "Session-ID": self.session_id
+                }
+                
+                # 构建请求体（OpenAI兼容格式）
+                payload = {
+                    "messages": messages,
+                    "max_tokens": MAX_TOKENS,
+                    "temperature": TEMPERATURE,
+                    "response_format": {"type": "json_object"}
+                }
+                
+                # model可以为空（判题器要求）
+                if MODEL_NAME:
+                    payload["model"] = MODEL_NAME
+                
+                log_info("[Extractor] 调用判题器模型服务: %s", url)
+                response = requests.post(url, json=payload, headers=headers, timeout=30)
+                response.raise_for_status()
+                
+                # 解析响应
+                response_data = response.json()
+                content = response_data["choices"][0]["message"]["content"]
+                usage = response_data.get("usage", {})
+                log_info("[Extractor] LLM响应完成，使用token: %d", usage.get("total_tokens", 0))
+                
+                result = json.loads(content)
+            else:
+                # 使用默认OpenAI客户端
+                if not self.client:
+                    self.client = self.default_client
+                if not self.client:
+                    raise Exception("模型客户端未初始化")
+                
+                # 构建请求参数
+                request_params = {
+                    "messages": messages,
+                    "max_tokens": MAX_TOKENS,
+                    "temperature": TEMPERATURE,
+                    "response_format": {"type": "json_object"}
+                }
+                
+                if MODEL_NAME:
+                    request_params["model"] = MODEL_NAME
+                
+                response_obj = self.client.chat.completions.create(**request_params)
+                log_info("[Extractor] LLM响应完成，使用token: %d", response_obj.usage.total_tokens if hasattr(response_obj, 'usage') else 0)
+                result = json.loads(response_obj.choices[0].message.content)
             
             log_info("[Extractor] LLM响应完成，使用token: %d", response.usage.total_tokens if hasattr(response, 'usage') else 0)
             

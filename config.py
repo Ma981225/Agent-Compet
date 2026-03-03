@@ -9,7 +9,14 @@ load_dotenv()
 # API配置
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")
+
+# 模型服务配置（由判题器下发）
+MODEL_IP = os.getenv("MODEL_IP", "localhost")
+MODEL_PORT = int(os.getenv("MODEL_PORT", "8888"))
+MODEL_BASE_URL = f"http://{MODEL_IP}:{MODEL_PORT}"
+
+# 兼容旧配置
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", MODEL_BASE_URL)
 
 # Web服务配置
 SERVER_HOST = os.getenv("HOST", "0.0.0.0")

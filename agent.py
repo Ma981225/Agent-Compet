@@ -24,7 +24,7 @@ class RentalHouseAgent:
         self.current_requirement: Optional[Requirement] = None
         self.candidate_houses: List[HouseInfo] = []
     
-    def process_user_input(self, user_input: str) -> str:
+    def process_user_input(self, user_input: str, model_ip: Optional[str] = None, session_id: Optional[str] = None) -> str:
         """
         处理用户输入
         
@@ -36,6 +36,10 @@ class RentalHouseAgent:
         """
         try:
             log_info("[Agent] 开始处理用户输入，长度: %d", len(user_input))
+            
+            # 如果提供了model_ip和session_id，更新extractor的配置
+            if model_ip and session_id:
+                self.requirement_extractor.set_model_config(model_ip, session_id)
             
             requirement, reply = self.requirement_extractor.extract_requirement(
                 user_input, self.current_requirement

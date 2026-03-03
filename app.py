@@ -1,7 +1,7 @@
 """
 租房需求匹配智能体 Web API 服务
 """
-from fastapi import FastAPI, HTTPException, APIRouter
+from fastapi import FastAPI, HTTPException, APIRouter, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
@@ -27,9 +27,10 @@ v1_router = APIRouter(prefix="/api/v1", tags=["v1"])
 
 
 class ChatRequest(BaseModel):
-    """聊天请求模型"""
-    message: str
-    session_id: Optional[str] = None
+    """聊天请求模型（判题器格式）"""
+    model_ip: str  # 判题器下发的模型服务IP
+    session_id: str  # 会话ID（请求体中）
+    message: str  # 用户消息
 
 
 class ChatResponse(BaseModel):
@@ -64,25 +65,34 @@ async def health_check():
 
 
 @v1_router.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(
+    request: ChatRequest,
+    session_id: str = Header(..., alias="Session-ID", description="会话ID，由评测接口生成，必填")
+):
     """
-    处理用户聊天请求
+    处理用户聊天请求（判题器接口）
     
     Args:
-        request: 聊天请求，包含用户消息和会话ID
+        request: 聊天请求，包含model_ip、session_id、message
+        session_id: 从请求头获取的Session-ID（必填，由评测接口生成）
         
     Returns:
         聊天响应，包含助手回复和会话ID
     """
     start_time = time.time()
-    session_id = request.session_id or "unknown"
     
     try:
-        log_info("[Chat] 收到聊天请求 | Session: %s | 消息长度: %d", 
-                 session_id, len(request.message))
+        log_info("[Chat] 收到判题器请求")
+        log_info("[Chat] Model IP: %s | Session: %s | 消息长度: %d", 
+                 request.model_ip, session_id, len(request.message))
         log_info("[Chat] 用户消息: %s", request.message[:200] if len(request.message) > 200 else request.message)
         
-        reply = agent.process_user_input(request.message)
+        # 传递model_ip和session_id给agent
+        reply = agent.process_user_input(
+            request.message, 
+            model_ip=request.model_ip,
+            session_id=session_id
+        )
         
         elapsed_time = time.time() - start_time
         log_info("[Chat] 处理完成 | Session: %s | 耗时: %.2f秒 | 回复长度: %d", 
@@ -91,7 +101,7 @@ async def chat(request: ChatRequest):
         
         return ChatResponse(
             reply=reply,
-            session_id=request.session_id
+            session_id=session_id
         )
     except Exception as e:
         elapsed_time = time.time() - start_time
@@ -129,9 +139,19 @@ app.include_router(v1_router)
 @app.on_event("startup")
 async def startup_event():
     """服务启动事件"""
+    from config import OPENAI_API_KEY
+    
     log_info("=" * 50)
     log_info("租房需求匹配智能体API服务启动")
     log_info("=" * 50)
+    
+    # 检查配置
+    if not OPENAI_API_KEY:
+        log_warning("⚠️  OPENAI_API_KEY 未配置！")
+        log_warning("请在.env文件中设置OPENAI_API_KEY，否则无法使用需求提取功能")
+    else:
+        masked_key = OPENAI_API_KEY[:8] + "..." + OPENAI_API_KEY[-4:] if len(OPENAI_API_KEY) > 12 else "***"
+        log_info("✓ OpenAI API密钥已配置: %s", masked_key)
     
     # 打印所有注册的路由
     log_info("已注册的路由:")
