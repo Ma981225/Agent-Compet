@@ -103,7 +103,7 @@ python app.py
 
 #### API端点
 
-- `POST /v1/chat` - 处理用户聊天请求
+- `POST /api/v1/chat` - 处理用户聊天请求
   ```json
   {
     "message": "我想在朝阳区租一套两居室",
@@ -111,7 +111,7 @@ python app.py
   }
   ```
 
-- `POST /v1/reset` - 重置对话状态
+- `POST /api/v1/reset` - 重置对话状态
   ```json
   {
     "session_id": "optional_session_id"
@@ -126,7 +126,7 @@ python app.py
 
 ```bash
 # 发送聊天请求
-curl -X POST "http://localhost:8000/v1/chat" \
+curl -X POST "http://localhost:8000/api/v1/chat" \
   -H "Content-Type: application/json" \
   -d '{"message": "我想在朝阳区租一套两居室"}'
 
