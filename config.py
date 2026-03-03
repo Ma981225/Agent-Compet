@@ -39,3 +39,6 @@ WEIGHTS = {
 
 # 最大候选房源数
 MAX_CANDIDATES = 5
+
+# 用户工号配置（比赛平台注册的用户工号）
+USER_ID = os.getenv("USER_ID", "m00876829")

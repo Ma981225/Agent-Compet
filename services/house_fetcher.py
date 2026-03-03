@@ -5,7 +5,7 @@ import requests
 from typing import List, Dict, Any, Optional
 from models.house import HouseInfo
 from models.requirement import Requirement
-from config import API_BASE_URL, PLATFORMS
+from config import API_BASE_URL, PLATFORMS, USER_ID
 from utils.logger import log_info, log_error, log_warning
 
 
@@ -69,8 +69,14 @@ class HouseFetcher:
         url = f"{self.base_url}/api/houses/search"
         params = self._build_search_params(requirement, platform)
         
+        # 房源接口必须带X-User-ID请求头
+        headers = {
+            "X-User-ID": USER_ID
+        }
+        
         try:
-            response = requests.get(url, params=params, timeout=10)
+            log_info("[Fetcher] 请求房源接口: %s | User-ID: %s", url, USER_ID)
+            response = requests.get(url, params=params, headers=headers, timeout=10)
             response.raise_for_status()
             data = response.json()
             
@@ -85,8 +91,14 @@ class HouseFetcher:
             
             return houses
             
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 400:
+                log_error("[Fetcher] 请求房源接口失败（400）: 可能缺少X-User-ID请求头 | User-ID: %s", USER_ID)
+            else:
+                log_error("[Fetcher] 请求平台 %s 失败 (HTTP %d): %s", platform, e.response.status_code, str(e))
+            return []
         except requests.exceptions.RequestException as e:
-            log_error("请求平台 %s 失败: %s", platform, str(e))
+            log_error("[Fetcher] 请求平台 %s 失败: %s", platform, str(e))
             return []
     
     def _build_search_params(self, requirement: Requirement, platform: str) -> Dict[str, Any]:
